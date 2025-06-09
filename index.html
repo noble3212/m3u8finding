@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>M3U8 to MP4 + Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+  <h1>Convert .m3u8 to MP4</h1>
+
+  <!-- Mode selection -->
+  <label><input type="radio" name="mode" value="url" checked> Use URL</label>
+  <label><input type="radio" name="mode" value="file"> Use File</label>
+
+  <!-- URL input -->
+  <div id="urlSection">
+    <input type="text" id="urlInput" placeholder="Enter .m3u8 URL">
+  </div>
+
+  <!-- File input -->
+  <div id="fileSection" style="display: none;">
+    <input type="file" id="fileInput" accept=".m3u8">
+  </div>
+
+  <br><br>
+  <button onclick="download()">Download as MP4</button>
+
+  <hr>
+
+  <h2>Preview .m3u8 Stream</h2>
+  <input type="text" id="playInput" placeholder="Paste .m3u8 URL to play">
+  <button onclick="playStream()">Play Stream</button>
+  <br><br>
+  <video id="videoPlayer" width="640" height="360" controls></video>
+
+  <script>
+    // Toggle UI between URL/File input
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+        document.getElementById('urlSection').style.display = mode === 'url' ? 'block' : 'none';
+        document.getElementById('fileSection').style.display = mode === 'file' ? 'block' : 'none';
+      });
+    });
+
+    // Download handler
+    async function download() {
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+
+      if (mode === 'url') {
+        const url = document.getElementById('urlInput').value;
+        const res = await fetch('/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+
+        if (!res.ok) {
+          alert('Failed to download video.');
+          return;
+        }
+
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'video.mp4';
+        a.click();
+      } else {
+        const file = document.getElementById('fileInput').files[0];
+        if (!file) return alert("Please select a file.");
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch('/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) {
+          alert('Failed to convert uploaded file.');
+          return;
+        }
+
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'video.mp4';
+        a.click();
+      }
+    }
+
+    // Play .m3u8 in browser
+    function playStream() {
+      const video = document.getElementById('videoPlayer');
+      const videoSrc = document.getElementById('playInput').value;
+
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(videoSrc);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+          video.play();
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // For Safari
+        video.src = videoSrc;
+        video.addEventListener('loadedmetadata', function () {
+          video.play();
+        });
+      } else {
+        alert('Your browser does not support playing .m3u8 files.');
+      }
+    }
+  </script>
+</body>
+</html>
